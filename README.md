@@ -1,11 +1,8 @@
 # cbert_aug
 
-Thanks @liuyaxin 's effort to rewrite the code with huggingface's latest transformer library.
-If you want to reproduce the results in paper, you can switch to the develop branch.
+The paper of Conditional Bert is https://link.springer.com/chapter/10.1007/978-3-030-22747-0_7#Tab3  
+The original code of Conditional Bert from https://github.com/1024er/cbert_aug.git. 
 
-
-We arrange the original code of cbert from https://github.com/1024er/cbert_aug.git. 
-Our original implementation was two-stage, for convenience, we rewrite the code. 
 
 The *global.config* contains the global configuration for bert and classifier.
 The datasets directory contains files for bert, and the aug_data directory contain augmented files for classifier.
