@@ -4,7 +4,7 @@ import logging
 import random
 
 import torch
-from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler,SequentialSampler
 
 """initialize logger"""
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -76,9 +76,9 @@ class AugProcessor(DataProcessor):
     
     def get_labels(self, name):
         """add your dataset here"""
-        if name in ['stsa.binary', 'mpqa', 'rt-polarity', 'subj']:
+        if name in ['stsa2', 'mpqa', 'rt-polarity', 'subj']:
             return ["0", "1"]
-        elif name in ['stsa.fine']:
+        elif name in ['stsa5']:
             return ["0", "1", "2", "3", "4"]
         elif name in ['TREC']:
             return ["0", "1", "2", "3", "4", "5"]
@@ -108,7 +108,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         # The convention in BERT is:
         # tokens:   [CLS] is this jack ##son ##ville ? [SEP]
         # type_ids: 0     0  0    0    0     0       0 0    
-        tokens_a = tokenizer._tokenize(example.text_a)
+        tokens_a = tokenizer._tokenize(example.text_a)    #拆分每个单词到列表
         tokens_label = label_map[example.label]
         tokens, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels = \
             extract_features(tokens_a, tokens_label, max_seq_length, tokenizer)
@@ -154,8 +154,8 @@ def construct_train_dataloader(train_examples, label_list, max_seq_length, train
     all_masked_lm_labels = torch.tensor([f.masked_lm_labels for f in train_features], dtype=torch.long, device=device)
     
     tensor_dataset = TensorDataset(all_init_ids, all_input_ids, all_input_mask, 
-        all_segment_ids, all_masked_lm_labels)
-    train_sampler = RandomSampler(tensor_dataset)
+        all_segment_ids, all_masked_lm_labels) #(初始id，被遮蔽后的id，句子长的全1向量，句子标签(0,1,...)，被遮蔽词的标签序列[-1,-1,5189,...,-1])
+    train_sampler = SequentialSampler(tensor_dataset)
     train_dataloader = DataLoader(tensor_dataset, sampler=train_sampler, batch_size=train_batch_size)
     return train_features, num_train_steps, train_dataloader
 
@@ -170,7 +170,7 @@ def rev_wordpiece(str):
             elif len(str[i]) > 1 and str[i][0]=='#' and str[i][1]=='#':
                 str[i-1] += str[i][2:]
                 str.remove(str[i])
-    return " ".join(str[1:-1])
+    return " ".join(str[1:-1])     #给每个词之间接上空格
 
 
 def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
@@ -181,13 +181,13 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     
     tokens = []
     segment_ids = []
-    tokens.append('[CLS]')
+    tokens.append('[CLS]')              #cls在句子开头
     segment_ids.append(tokens_label)
     for token in tokens_a:
-        tokens.append(token)
+        tokens.append(token)            
         segment_ids.append(tokens_label)
-    tokens.append('[SEP]')
-    segment_ids.append(tokens_label)
+    tokens.append('[SEP]')              #sep在句子结尾
+    segment_ids.append(tokens_label)    #单词转id
 
     ## construct init_ids for each example
     init_ids = convert_tokens_to_ids(tokens, tokenizer)
@@ -197,11 +197,11 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     masked_lm_probs = 0.15
     max_predictions_per_seq = 20
     rng = random.Random(12345)
-    original_masked_lm_labels = [-1] * max_seq_length
-    (output_tokens, masked_lm_positions, 
+    original_masked_lm_labels = [-100] * max_seq_length       #标签序列初始化为-100(无视单词)，长度为最长
+    (output_tokens, masked_lm_positions,       #(输出一条被[MASK]的句子，进行遮蔽的位置，被遮蔽词的标签序列[-1,-1,5189,...,-1])
     masked_lm_labels) = create_masked_lm_predictions(
             tokens, masked_lm_probs, original_masked_lm_labels, max_predictions_per_seq, rng, tokenizer)
-    input_ids = convert_tokens_to_ids(output_tokens, tokenizer)
+    input_ids = convert_tokens_to_ids(output_tokens, tokenizer)  #被[MASK]句子的ID，被遮蔽位置统一换成[MASK]的ID
 
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
     # tokens are attended to.

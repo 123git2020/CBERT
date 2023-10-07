@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
-from transformers import BertTokenizer, BertModel, BertForMaskedLM, AdamW, WarmupLinearSchedule
+from transformers import BertTokenizer, BertModel, BertForMaskedLM, AdamW, get_linear_schedule_with_warmup
 #import train_text_classifier_new
 
 import cbert_utils
@@ -37,11 +37,11 @@ def main():
                         help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
     parser.add_argument("--output_dir", default="aug_data", type=str,
                         help="The output dir for augmented dataset.")
-    parser.add_argument("--save_model_dir", default="cbert_model", type=str,
+    parser.add_argument("--save_model_dir", default="CBERT", type=str,
                         help="The cache dir for saved model.")
-    parser.add_argument("--bert_model", default="bert-base-uncased", type=str,
+    parser.add_argument("--bert_model", default="bert-base-cased", type=str,
                         help="The path of pretrained bert model.")
-    parser.add_argument("--task_name", default="subj", type=str,
+    parser.add_argument("--task_name", default="stsa2", type=str,
                         help="The name of the task to train.")
     parser.add_argument("--max_seq_length", default=64, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
@@ -53,7 +53,7 @@ def main():
                         help="Total batch size for training.")
     parser.add_argument("--learning_rate", default=5e-5, type=float,
                         help="The initial learning rate for Adam.")
-    parser.add_argument("--num_train_epochs", default=10.0, type=float,
+    parser.add_argument("--num_train_epochs", default=8.0, type=float,
                         help="Total number of training epochs to perform.")
     parser.add_argument("--warmup_proportion", default=0.1, type=float,
                         help="Proportion of training to perform linear learning rate warmup for."
@@ -70,8 +70,8 @@ def main():
     processors = {
         ## you can add your processor here
         "TREC": AugProcessor,
-        "stsa.fine": AugProcessor,
-        "stsa.binary": AugProcessor,
+        "stsa5": AugProcessor,
+        "stsa2": AugProcessor,
         "mpqa": AugProcessor,
         "rt-polarity": AugProcessor,
         "subj": AugProcessor,
@@ -94,7 +94,7 @@ def main():
     ## leveraging lastest bert module in Transformers to load pre-trained model (weights)
     model = BertForMaskedLM.from_pretrained(args.bert_model)
 
-    if task_name == 'stsa.fine':
+    if task_name == 'stsa5':
         model.bert.embeddings.token_type_embeddings = torch.nn.Embedding(5, 768)
         model.bert.embeddings.token_type_embeddings.weight.data.normal_(mean=0.0, std=0.02)
     elif task_name == 'TREC':
@@ -103,7 +103,7 @@ def main():
 
     args.data_dir = os.path.join(args.data_dir, task_name)
     args.output_dir = os.path.join(args.output_dir, task_name)
-    os.makedirs(args.output_dir, exist_ok=True)
+    #os.makedirs(args.output_dir, exist_ok=True)
 
     train_examples = processor.get_train_examples(args.data_dir)
     train_features, num_train_steps, train_dataloader = \
@@ -128,27 +128,25 @@ def main():
     optimizer = AdamW(optimizer_grounded_parameters, lr=args.learning_rate, correct_bias=False)
     model.train()
 
-    os.makedirs(args.save_model_dir, exist_ok=True)
-    save_model_dir = os.path.join(args.save_model_dir, task_name)
-    if not os.path.exists(save_model_dir):
-        os.mkdir(save_model_dir)
+    save_model_dir = os.path.join(args.save_model_dir, task_name)  #存model的文件夹，对于某一个分类任务
 
     for e in trange(int(args.num_train_epochs), desc="Epoch"):
+        
         avg_loss = 0.
 
         for step, batch in enumerate(train_dataloader):
             batch = tuple(t.cuda() for t in batch)
-            _, input_ids, input_mask, segment_ids, masked_ids = batch
+            _, input_ids, input_mask, segment_ids, masked_ids = batch    #原始id不参与训练
             """train generator at each batch"""
             optimizer.zero_grad() 
             outputs = model(input_ids, input_mask, segment_ids,
-                    masked_lm_labels=masked_ids)
+                    labels=masked_ids)
             loss = outputs[0]
             loss.backward()
             avg_loss += loss.item()
             optimizer.step()
-            if (step + 1) % 50 == 0:
-                print("avg_loss: {}".format(avg_loss / 50))
+            if (step + 1) % 100 == 0:
+                print("avg_loss: {}".format(avg_loss / 100))
                 avg_loss = 0
         if args.save_every_epoch:
             save_model_name = "BertForMaskedLM_" + task_name + "_epoch_" + str(e + 1)
