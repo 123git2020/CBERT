@@ -1,1 +1,0 @@
-# Trained Models of Stsa2
