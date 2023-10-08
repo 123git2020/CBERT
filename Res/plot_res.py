@@ -49,6 +49,7 @@ plt.xticks([0.01,0.1, 0.2, 0.6, 1])
 
 plt.legend(loc='lower right')
 plt.grid(True)
+
 plt.savefig("1",dpi=250)
 
 plt.figure(figsize=(7,5))
@@ -63,5 +64,5 @@ plt.xticks([0.01,0.1, 0.2, 0.6, 1])
 
 plt.legend(loc='lower right')
 plt.grid(True)
-
+plt.show()
 plt.savefig("2",dpi=250)

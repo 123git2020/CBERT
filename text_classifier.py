@@ -105,5 +105,5 @@ if __name__ == "__main__":
 		# 将新数据转换为DataFrame
         new_row = pd.DataFrame([new_data])
 		# 将新行添加到现有的CSV文件
-        new_row.to_csv(task_name+'_accuracy.csv', mode='a', header=False, index=False)
+        new_row.to_csv('Res/'+task_name+'_accuracy.csv', mode='a', header=False, index=False)
         gc.collect()
